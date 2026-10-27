@@ -1,0 +1,79 @@
+# The GitHub Actions workflow publishes the three custom images with the
+# full commit SHA as the tag. JEFF-ACTIONS.md passes that SHA explicitly:
+#   --set image.tag="$(git rev-parse HEAD)"
+# The placeholder below makes an accidental unversioned install obvious.
+image:
+  tag: "SET_TO_COMMIT_SHA"
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+vote:
+  repository: ghcr.io/semilooredev/capstone-vote
+  replicaCount: 1
+  service:
+    type: LoadBalancer
+    port: 80
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+result:
+  repository: ghcr.io/semilooredev/capstone-result
+  replicaCount: 1
+  service:
+    type: LoadBalancer
+    port: 80
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+worker:
+  repository: ghcr.io/semilooredev/capstone-worker
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+redis:
+  repository: redis
+  tag: 7.4.1-alpine
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+database:
+  repository: postgres
+  tag: 16.4-alpine
+  replicaCount: 1
+  persistence:
+    size: 1Gi
+    # Empty means "use the cluster's default StorageClass".
+    storageClassName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+options:
+  optionA: Cats
+  optionB: Dogs

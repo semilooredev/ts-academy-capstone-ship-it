@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  labels:
+    {{- include "votingApp.componentLabels" (dict "context" . "component" "worker") | nindent 4 }}
+spec:
+  replicas: {{ .Values.worker.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "votingApp.selectorLabels" (dict "component" "worker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "votingApp.componentLabels" (dict "context" . "component" "worker") | nindent 8 }}
+    spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "votingApp.podSecurityContext" . | nindent 8 }}
+        runAsUser: 10002
+        runAsGroup: 10002
+        fsGroup: 10002
+      containers:
+        - name: worker
+          image: "{{ .Values.worker.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          securityContext:
+            {{- include "votingApp.containerSecurityContext" . | nindent 12 }}

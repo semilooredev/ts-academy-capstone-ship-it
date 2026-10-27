@@ -1,0 +1,109 @@
+name: capstone-voting-app
+
+services:
+  vote:
+    build:
+      context: ./vote
+      target: final
+    image: capstone/vote:local
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      OPTION_A: "Cats"
+      OPTION_B: "Dogs"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    ports:
+      - "8080:8080"
+    networks:
+      - front-tier
+      - back-tier
+
+  result:
+    build:
+      context: ./result
+    image: capstone/result:local
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: "8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    ports:
+      - "8081:8080"
+    networks:
+      - front-tier
+      - back-tier
+
+  worker:
+    build:
+      context: ./worker
+    image: capstone/worker:local
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    networks:
+      - back-tier
+
+  redis:
+    image: redis:7.4.1-alpine
+    user: "999:999"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+      - ./healthchecks:/healthchecks:ro
+    healthcheck:
+      test: /healthchecks/redis.sh
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - back-tier
+
+  db:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./healthchecks:/healthchecks:ro
+    healthcheck:
+      test: /healthchecks/postgres.sh
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - back-tier
+
+  # Optional upstream data seeder. It is not part of the five-service runtime.
+  seed:
+    build: ./seed-data
+    profiles: ["seed"]
+    depends_on:
+      vote:
+        condition: service_healthy
+    networks:
+      - front-tier
+    restart: "no"
+
+volumes:
+  db-data:
+  redis-data:
+
+networks:
+  front-tier:
+  back-tier:

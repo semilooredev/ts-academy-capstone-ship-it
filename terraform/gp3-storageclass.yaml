@@ -1,0 +1,17 @@
+# Apply this ONLY if `kubectl get storageclass` shows no default class
+# backed by the EBS CSI driver (JEFF-ACTIONS.md step 6 explains the check).
+# Terraform installs the aws-ebs-csi-driver add-on, but EKS does not create
+# this StorageClass for a Terraform-built cluster.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+  fsType: ext4
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true

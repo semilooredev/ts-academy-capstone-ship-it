@@ -1,0 +1,201 @@
+name: Capstone 1 - Test, Scan, Build and Push
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: capstone1-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  # Jeff's verified GitHub account (created and email-verified 23 Oct 2026).
+  # Keep this lowercase value identical to the GHCR repositories in
+  # helm/voting-app/values.yaml.
+  GHCR_OWNER: semilooredev
+
+jobs:
+  checks:
+    name: Static checks and validation
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.18.0"
+          cache: npm
+          cache-dependency-path: result/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.10"
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+          terraform_wrapper: false
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "v3.16.2"
+
+      - name: Run application syntax checks
+        run: |
+          node --check result/server.js
+          python -m compileall -q vote
+          npm --prefix result test
+          test -f result/package-lock.json
+
+      - name: Validate Compose
+        run: docker compose config --quiet
+
+      - name: Validate Terraform without a backend or cloud credentials
+        working-directory: terraform
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false
+          terraform validate
+
+      - name: Lint and render Helm chart
+        run: |
+          helm lint helm/voting-app
+          helm template voting-app helm/voting-app \
+            --namespace voting-app \
+            --set image.tag="${GITHUB_SHA}" > /tmp/voting-app-rendered.yaml
+          grep -q "name: vote" /tmp/voting-app-rendered.yaml
+          grep -q "name: result" /tmp/voting-app-rendered.yaml
+          grep -q "name: worker" /tmp/voting-app-rendered.yaml
+
+  smoke-test:
+    name: Compose end-to-end smoke test
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build and start the five runtime services
+        run: docker compose up --build -d vote result worker redis db
+
+      - name: Wait for HTTP services and submit a vote
+        shell: bash
+        run: |
+          set -euo pipefail
+          for url in http://localhost:8080/ http://localhost:8081/; do
+            ok=0
+            for attempt in $(seq 1 60); do
+              if curl --fail --silent "$url" >/dev/null; then
+                ok=1
+                break
+              fi
+              sleep 2
+            done
+            if [ "$ok" -ne 1 ]; then
+              echo "Service did not become ready: $url" >&2
+              docker compose ps
+              docker compose logs
+              exit 1
+            fi
+          done
+
+          curl --fail --silent -X POST --data "vote=a" http://localhost:8080/ >/dev/null
+
+          count=0
+          for attempt in $(seq 1 30); do
+            count=$(docker compose exec -T db psql -U postgres -d postgres -tAc \
+              "SELECT COUNT(*) FROM votes;" | tr -d '[:space:]' || true)
+            if [ "${count:-0}" -ge 1 ]; then
+              break
+            fi
+            sleep 2
+          done
+
+          echo "Votes recorded in Postgres: ${count:-0}"
+          test "${count:-0}" -ge 1
+
+      - name: Show logs if the smoke test fails
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs
+
+      - name: Stop the smoke-test stack
+        if: always()
+        run: docker compose down -v
+
+  scan-and-push:
+    name: Trivy scan and push SHA-tagged images
+    needs: smoke-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: vote
+            context: ./vote
+            dockerfile: ./vote/Dockerfile
+            target: final
+          - component: result
+            context: ./result
+            dockerfile: ./result/Dockerfile
+            target: ""
+          - component: worker
+            context: ./worker
+            dockerfile: ./worker/Dockerfile
+            target: ""
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build the image locally for scanning
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          load: true
+          push: false
+          tags: ${{ env.REGISTRY }}/${{ env.GHCR_OWNER }}/capstone-${{ matrix.component }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+
+      - name: Scan the built image with Trivy
+        shell: bash
+        run: |
+          docker run --rm \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.57.1 image \
+            --exit-code 1 \
+            --ignore-unfixed \
+            --severity HIGH,CRITICAL \
+            "${REGISTRY}/${GHCR_OWNER}/capstone-${{ matrix.component }}:${GITHUB_SHA}"
+
+      - name: Log in to GHCR only after the scan passes
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: semilooredev
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push the scanned SHA-tagged image
+        shell: bash
+        run: docker push "${REGISTRY}/${GHCR_OWNER}/capstone-${{ matrix.component }}:${GITHUB_SHA}"

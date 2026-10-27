@@ -1,0 +1,7 @@
+# Local Terraform artifacts - never commit state or the generated kubeconfig
+.terraform/
+*.tfstate
+*.tfstate.*
+kubeconfig
+crash.log
+crash.*.log

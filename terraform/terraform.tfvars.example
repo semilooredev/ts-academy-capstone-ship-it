@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars only if you need values different from variables.tf.
+aws_region = "eu-west-2"
+cluster_name = "semiloore-capstone-eks"
+kubernetes_version = "1.33"
+node_instance_types = ["t3.medium"]
+node_desired_capacity = 2
+node_min_capacity = 2
+node_max_capacity = 3
+
+# Strongly recommended before a real apply: replace this with your home
+# public IP, for example ["203.0.113.10/32"]. Do not use an example IP.
+public_access_cidrs = ["0.0.0.0/0"]

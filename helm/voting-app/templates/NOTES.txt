@@ -1,0 +1,8 @@
+Voting App installed in namespace {{ .Release.Namespace }}.
+
+Get the load-balancer addresses with:
+  kubectl get svc -n {{ .Release.Namespace }} vote result
+
+Capture these evidence commands for the demo:
+  helm history voting-app -n {{ .Release.Namespace }}
+  kubectl get pods -n {{ .Release.Namespace }}

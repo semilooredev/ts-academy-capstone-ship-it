@@ -1,0 +1,51 @@
+# VM-ONLY override for the agent sandbox - NOT for Jeff's laptop.
+#
+# This sandbox forbids bridge devices (netns owned by the parent user
+# namespace), so the canonical bridge-networked compose run is impossible
+# here. This override runs the same images, same commands, same ports on
+# the host network instead; service hostnames (redis, db) are mapped to
+# 127.0.0.1 so the application code is unchanged. Result's PORT moves to
+# 8081 because host networking removes the port-mapping layer (8081 is
+# exactly where the canonical file publishes it).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.vm.yaml up -d
+services:
+  vote:
+    network_mode: host
+    networks: !override []
+    build:
+      network: host
+    extra_hosts:
+      - "redis:127.0.0.1"
+      - "db:127.0.0.1"
+    ports: []
+  result:
+    network_mode: host
+    networks: !override []
+    build:
+      network: host
+    environment:
+      PORT: "8081"
+    extra_hosts:
+      - "redis:127.0.0.1"
+      - "db:127.0.0.1"
+    ports: []
+  worker:
+    network_mode: host
+    networks: !override []
+    build:
+      network: host
+    extra_hosts:
+      - "redis:127.0.0.1"
+      - "db:127.0.0.1"
+  redis:
+    network_mode: host
+    networks: !override []
+  db:
+    network_mode: host
+    networks: !override []
+  seed:
+    network_mode: host
+    networks: !override []
+    extra_hosts:
+      - "vote:127.0.0.1"

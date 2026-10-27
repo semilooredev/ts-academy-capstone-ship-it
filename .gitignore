@@ -1,0 +1,14 @@
+*.pyc
+project.lock.json
+bin/
+obj/
+.vs/
+node_modules/
+
+# Terraform (Capstone 1) - state is sensitive and must never be committed
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+crash.log
+crash.*.log
