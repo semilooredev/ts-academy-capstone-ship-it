@@ -65,7 +65,7 @@ services:
       - redis-data:/data
       - ./healthchecks:/healthchecks:ro
     healthcheck:
-      test: /healthchecks/redis.sh
+      test: ["CMD", "sh", "/healthchecks/redis.sh"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -82,7 +82,7 @@ services:
       - db-data:/var/lib/postgresql/data
       - ./healthchecks:/healthchecks:ro
     healthcheck:
-      test: /healthchecks/postgres.sh
+      test: ["CMD", "sh", "/healthchecks/postgres.sh"]
       interval: 5s
       timeout: 3s
       retries: 5
