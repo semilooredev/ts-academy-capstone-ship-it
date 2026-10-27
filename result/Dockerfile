@@ -15,6 +15,12 @@ RUN npm ci && \
     mv /usr/local/app/node_modules /node_modules && \
     chown -R node:node /usr/local/app
 
+# The app never uses npm at runtime, and the npm bundled with the node base
+# image ships language packages with known HIGH/CRITICAL vulnerabilities
+# (tar, pacote, glob, minimatch, ...). Remove it from the production image
+# so the image scan only sees the application's own dependencies.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 COPY --chown=node:node . .
 
 ENV PORT=8080
