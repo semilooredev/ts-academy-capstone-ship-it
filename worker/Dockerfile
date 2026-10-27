@@ -17,6 +17,9 @@ RUN dotnet publish -c release -o /app -a $TARGETARCH --self-contained false --no
 
 FROM mcr.microsoft.com/dotnet/runtime:7.0.20 AS final
 WORKDIR /app
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --gid 10002 worker && \
     useradd --uid 10002 --gid worker --no-create-home --shell /usr/sbin/nologin worker
