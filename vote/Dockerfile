@@ -4,6 +4,7 @@
 FROM python:3.11.10-slim-bookworm AS base
 
 RUN apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/*
 
@@ -11,6 +12,7 @@ WORKDIR /usr/local/app
 
 COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade setuptools wheel
 
 # Development stage retained from upstream for local debugging only. The
 # Compose file and CI use the final stage below.
