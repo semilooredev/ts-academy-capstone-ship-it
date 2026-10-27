@@ -1,5 +1,5 @@
 #!/bin/sh
-set -eo pipefail
+set -eu
 
 host="$(hostname -i || echo '127.0.0.1')"
 
