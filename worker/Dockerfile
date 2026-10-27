@@ -15,7 +15,7 @@ RUN dotnet restore -a $TARGETARCH
 COPY . .
 RUN dotnet publish -c release -o /app -a $TARGETARCH --self-contained false --no-restore
 
-FROM mcr.microsoft.com/dotnet/runtime:7.0.20 AS final
+FROM mcr.microsoft.com/dotnet/runtime:7.0.20-bookworm-slim AS final
 WORKDIR /app
 RUN apt-get update && \
     apt-get upgrade -y && \
